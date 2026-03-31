@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://lost-and-found-portal-dbms-project-1.onrender.com/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://lost-and-found-portal-dbms-project-2.onrender.com/api';
 
 async function request(url, options = {}) {
   const res = await fetch(`${API_BASE}${url}`, {
