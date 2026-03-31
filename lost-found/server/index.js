@@ -1,5 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
+const { query, client } = require('./db/database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +32,36 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+async function bootstrap() {
+  // Run schema (execute each CREATE TABLE statement individually)
+  const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+  const schema = fs.readFileSync(schemaPath, 'utf-8');
+  const statements = schema
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  for (const stmt of statements) {
+    await query(stmt);
+  }
+  console.log('Schema ready');
+
+  // Seed only if empty
+  const result = await query('SELECT COUNT(*) as count FROM USER');
+  const count = Number(result.rows[0].count);
+  if (count === 0) {
+    await require('./seed')();
+    console.log('Database seeded');
+  } else {
+    console.log(`Database already has ${count} user(s), skipping seed`);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+bootstrap().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

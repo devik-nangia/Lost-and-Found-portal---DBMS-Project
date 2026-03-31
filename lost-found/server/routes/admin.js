@@ -3,26 +3,27 @@ const router = express.Router();
 const db = require('../db/database');
 
 // GET /api/admin — List all admins
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const admins = db.prepare('SELECT * FROM ADMIN').all();
-    res.json(admins);
+    const result = await db.query('SELECT * FROM ADMIN');
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // POST /api/admin — Register a new admin
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { Name, ContactNumber } = req.body;
   if (!Name) {
     return res.status(400).json({ error: 'Name is required' });
   }
   try {
-    const result = db.prepare(
-      'INSERT INTO ADMIN (Name, ContactNumber) VALUES (?, ?)'
-    ).run(Name, ContactNumber || null);
-    res.status(201).json({ AdminID: result.lastInsertRowid });
+    const result = await db.query(
+      'INSERT INTO ADMIN (Name, ContactNumber) VALUES (?, ?)',
+      [Name, ContactNumber || null]
+    );
+    res.status(201).json({ AdminID: Number(result.lastInsertRowid) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

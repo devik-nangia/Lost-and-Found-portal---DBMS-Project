@@ -1,17 +1,17 @@
-const Database = require('better-sqlite3');
+require('dotenv').config();
+const { createClient } = require('@libsql/client');
 const path = require('path');
-const fs = require('fs');
 
-const dbPath = path.join(__dirname, '..', 'lost_found.db');
-const db = new Database(dbPath);
+const client = createClient({
+  url: process.env.TURSO_URL || `file:${path.join(__dirname, '..', 'lost_found.db')}`,
+  authToken: process.env.TURSO_TOKEN,
+});
 
-// Enable WAL mode for better concurrent performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Thin async wrapper: returns { rows, rowsAffected, lastInsertRowid }
+const query = (sql, args = []) => client.execute({ sql, args });
 
-// Read and execute schema.sql on startup
-const schemaPath = path.join(__dirname, 'schema.sql');
-const schema = fs.readFileSync(schemaPath, 'utf-8');
-db.exec(schema);
+// Batch wrapper for atomic multi-statement operations (transactions)
+// stmts: [{ sql, args }, ...]
+const batch = (stmts) => client.batch(stmts, 'write');
 
-module.exports = db;
+module.exports = { query, batch, client };
