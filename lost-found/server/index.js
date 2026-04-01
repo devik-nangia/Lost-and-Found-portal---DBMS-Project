@@ -46,6 +46,34 @@ async function bootstrap() {
   }
   console.log('Schema ready');
 
+  // Install triggers (IF NOT EXISTS — safe to run every boot)
+  // Trigger 1: auto-set Is_Matched on both items when a match is recorded
+  await query(`
+    CREATE TRIGGER IF NOT EXISTS trg_auto_match
+    AFTER INSERT ON MATCHES_WITH
+    BEGIN
+      UPDATE LOST_ITEM  SET Is_Matched = 1 WHERE LostItemID  = NEW.LostItemID;
+      UPDATE FOUND_ITEM SET Is_Matched = 1 WHERE FoundItemID = NEW.FoundItemID;
+    END
+  `);
+
+  // Trigger 2: prevent a user from filing duplicate active claims on the same found item
+  await query(`
+    CREATE TRIGGER IF NOT EXISTS trg_prevent_duplicate_claim
+    BEFORE INSERT ON CLAIM
+    WHEN (
+      SELECT COUNT(*) FROM CLAIM
+      WHERE UserID      = NEW.UserID
+        AND FoundItemID = NEW.FoundItemID
+        AND Status     != 'Rejected'
+    ) > 0
+    BEGIN
+      SELECT RAISE(ABORT, 'User already has an active claim for this item');
+    END
+  `);
+
+  console.log('Triggers ready');
+
   // Seed only if empty
   const result = await query('SELECT COUNT(*) as count FROM USER');
   const count = Number(result.rows[0].count);

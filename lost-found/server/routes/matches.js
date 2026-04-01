@@ -9,15 +9,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'LostItemID and FoundItemID are required' });
   }
   try {
-    // Atomic batch: insert match + mark both items as matched
-    await db.batch([
-      { sql: 'INSERT INTO MATCHES_WITH (LostItemID, FoundItemID) VALUES (?, ?)',
-        args: [LostItemID, FoundItemID] },
-      { sql: 'UPDATE LOST_ITEM SET Is_Matched = 1 WHERE LostItemID = ?',
-        args: [LostItemID] },
-      { sql: 'UPDATE FOUND_ITEM SET Is_Matched = 1 WHERE FoundItemID = ?',
-        args: [FoundItemID] },
-    ]);
+    // Insert the match — trg_auto_match trigger automatically sets
+    // Is_Matched = 1 on both LOST_ITEM and FOUND_ITEM
+    await db.query(
+      'INSERT INTO MATCHES_WITH (LostItemID, FoundItemID) VALUES (?, ?)',
+      [LostItemID, FoundItemID]
+    );
     res.status(201).json({ success: true });
   } catch (err) {
     if (err.message.includes('UNIQUE') || err.message.includes('PRIMARY')) {

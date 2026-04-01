@@ -59,18 +59,47 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PATCH /api/claims/:id/status — Admin updates claim status
+// PATCH /api/claims/:id/status — sp_resolve_claim procedure equivalent
+// Verifies or rejects a claim. If Verified, also marks the found item as
+// matched and auto-rejects all other pending claims for that found item.
 router.patch('/:id/status', async (req, res) => {
   const { Status, AdminID } = req.body;
   if (!Status || !['Pending', 'Verified', 'Rejected'].includes(Status)) {
     return res.status(400).json({ error: 'Status must be Pending, Verified, or Rejected' });
   }
   try {
-    const result = await db.query(
+    // Step 1: Get the FoundItemID for this claim
+    const claimResult = await db.query(
+      'SELECT FoundItemID FROM CLAIM WHERE ClaimID = ?',
+      [req.params.id]
+    );
+    if (!claimResult.rows[0]) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+    const foundItemId = claimResult.rows[0].FoundItemID;
+
+    // Step 2: Update this claim's status and assign admin
+    await db.query(
       'UPDATE CLAIM SET Status = ?, AdminID = ? WHERE ClaimID = ?',
       [Status, AdminID || null, req.params.id]
     );
-    if (result.rowsAffected === 0) return res.status(404).json({ error: 'Claim not found' });
+
+    // Step 3 (sp_resolve_claim logic): if Verified, mark found item as matched
+    // and reject all other pending claims for it
+    if (Status === 'Verified') {
+      await db.batch([
+        {
+          sql: 'UPDATE FOUND_ITEM SET Is_Matched = 1 WHERE FoundItemID = ?',
+          args: [foundItemId]
+        },
+        {
+          sql: `UPDATE CLAIM SET Status = 'Rejected'
+                WHERE FoundItemID = ? AND ClaimID != ? AND Status = 'Pending'`,
+          args: [foundItemId, req.params.id]
+        },
+      ]);
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
