@@ -16,7 +16,7 @@ export default function FileClaimNew() {
   })
 
   useEffect(() => {
-    api.getFoundItems('?is_matched=0')
+    api.getFoundItems('')
       .then(setFoundItems)
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
