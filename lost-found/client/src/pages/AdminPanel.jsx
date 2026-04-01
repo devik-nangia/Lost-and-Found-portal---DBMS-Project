@@ -31,7 +31,7 @@ export default function AdminPanel() {
       const [c, li, fi, a, m] = await Promise.all([
         api.getClaims(),
         api.getLostItems('?is_matched=0'),
-        api.getFoundItems('?is_matched=0'),
+        api.getFoundItems(''),
         api.getAdmins(),
         api.getMatches(),
       ])
